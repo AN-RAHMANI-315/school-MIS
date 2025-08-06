@@ -81,10 +81,10 @@ output "application_url" {
   value       = var.certificate_arn != "" ? "https://${aws_lb.main.dns_name}" : "http://${aws_lb.main.dns_name}"
 }
 
-output "backup_s3_bucket" {
-  description = "S3 bucket name for backups"
-  value       = var.enable_backup ? aws_s3_bucket.backup[0].bucket : null
-}
+# output "backup_s3_bucket" {
+#   description = "S3 bucket name for backups"
+#   value       = var.enable_backup ? aws_s3_bucket.backup[0].bucket : null
+# }
 
 output "deployment_summary" {
   description = "Summary of deployed resources"
@@ -95,7 +95,7 @@ output "deployment_summary" {
     availability_zones   = local.azs
     container_insights   = var.container_insights
     auto_scaling_enabled = var.enable_auto_scaling
-    backup_enabled       = var.enable_backup
+    # backup_enabled       = var.enable_backup
     ssl_enabled         = var.certificate_arn != ""
   }
 }

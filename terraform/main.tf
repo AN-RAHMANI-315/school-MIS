@@ -9,13 +9,16 @@ terraform {
   }
 
   # Backend configuration for state management
-  backend "s3" {
-    bucket         = "school-mis-terraform-state"
-    key            = "terraform.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "school-mis-terraform-locks"
-    encrypt        = true
-  }
+  # IMPORTANT: Run ./scripts/setup-terraform-backend.sh first to create the S3 bucket and DynamoDB table
+  # Then uncomment the backend block below and run: terraform init -migrate-state
+  
+  # backend "s3" {
+  #   bucket         = "school-mis-terraform-state"
+  #   key            = "terraform.tfstate"
+  #   region         = "us-east-1"
+  #   dynamodb_table = "school-mis-terraform-locks"
+  #   encrypt        = true
+  # }
 }
 
 # Configure AWS Provider
