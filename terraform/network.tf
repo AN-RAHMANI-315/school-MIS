@@ -133,6 +133,11 @@ resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
   retention_in_days = var.log_retention_in_days
 
   tags = local.common_tags
+
+  lifecycle {
+    ignore_changes = [name]
+    prevent_destroy = true
+  }
 }
 
 # IAM Role for VPC Flow Logs
@@ -153,6 +158,11 @@ resource "aws_iam_role" "flow_log" {
   })
 
   tags = local.common_tags
+
+  lifecycle {
+    ignore_changes = [name]
+    prevent_destroy = true
+  }
 }
 
 # IAM Policy for VPC Flow Logs

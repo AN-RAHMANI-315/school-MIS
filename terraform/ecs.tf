@@ -12,6 +12,11 @@ resource "aws_ecr_repository" "backend" {
   }
 
   tags = local.common_tags
+
+  lifecycle {
+    ignore_changes = [name]
+    prevent_destroy = true
+  }
 }
 
 resource "aws_ecr_repository" "frontend" {
@@ -27,6 +32,11 @@ resource "aws_ecr_repository" "frontend" {
   }
 
   tags = local.common_tags
+
+  lifecycle {
+    ignore_changes = [name]
+    prevent_destroy = true
+  }
 }
 
 # ECR Lifecycle Policies
@@ -129,6 +139,11 @@ resource "aws_cloudwatch_log_group" "ecs_cluster" {
   retention_in_days = var.log_retention_in_days
 
   tags = local.common_tags
+
+  lifecycle {
+    ignore_changes = [name]
+    prevent_destroy = true
+  }
 }
 
 # CloudWatch Log Groups for ECS Tasks
@@ -137,6 +152,11 @@ resource "aws_cloudwatch_log_group" "backend" {
   retention_in_days = var.log_retention_in_days
 
   tags = local.common_tags
+
+  lifecycle {
+    ignore_changes = [name]
+    prevent_destroy = true
+  }
 }
 
 resource "aws_cloudwatch_log_group" "frontend" {
@@ -144,6 +164,11 @@ resource "aws_cloudwatch_log_group" "frontend" {
   retention_in_days = var.log_retention_in_days
 
   tags = local.common_tags
+
+  lifecycle {
+    ignore_changes = [name]
+    prevent_destroy = true
+  }
 }
 
 # ECS Task Definition

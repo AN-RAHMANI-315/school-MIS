@@ -16,6 +16,11 @@ resource "aws_iam_role" "ecs_task_execution_role" {
   })
 
   tags = local.common_tags
+
+  lifecycle {
+    ignore_changes = [name]
+    prevent_destroy = true
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "ecs_task_execution_role" {
@@ -77,6 +82,11 @@ resource "aws_iam_role" "ecs_task_role" {
   })
 
   tags = local.common_tags
+
+  lifecycle {
+    ignore_changes = [name]
+    prevent_destroy = true
+  }
 }
 
 # Policy for ECS Task Role (application-specific permissions)
@@ -108,6 +118,11 @@ resource "aws_secretsmanager_secret" "mongo_url" {
   recovery_window_in_days = 7
 
   tags = local.common_tags
+
+  lifecycle {
+    ignore_changes = [name]
+    prevent_destroy = true
+  }
 }
 
 resource "aws_secretsmanager_secret_version" "mongo_url" {
@@ -121,6 +136,11 @@ resource "aws_secretsmanager_secret" "db_name" {
   recovery_window_in_days = 7
 
   tags = local.common_tags
+
+  lifecycle {
+    ignore_changes = [name]
+    prevent_destroy = true
+  }
 }
 
 resource "aws_secretsmanager_secret_version" "db_name" {
@@ -147,6 +167,11 @@ resource "aws_iam_role" "ecs_auto_scaling_role" {
   })
 
   tags = local.common_tags
+
+  lifecycle {
+    ignore_changes = [name]
+    prevent_destroy = true
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "ecs_auto_scaling_role" {
