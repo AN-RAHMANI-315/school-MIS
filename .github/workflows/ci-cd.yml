@@ -34,7 +34,7 @@ jobs:
         python-version: '3.11'
 
     - name: 📦 Cache Python dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.cache/pip
         key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
@@ -54,7 +54,7 @@ jobs:
       continue-on-error: true
 
     - name: 📊 Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         file: ./backend/coverage.xml
         flags: backend
@@ -63,7 +63,7 @@ jobs:
     - name: 🟢 Set up Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '20'
         cache: 'yarn'
         cache-dependency-path: frontend/yarn.lock
 
@@ -84,7 +84,7 @@ jobs:
         yarn build
 
     - name: 📤 Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: frontend-build
         path: frontend/build/
@@ -105,7 +105,7 @@ jobs:
     - name: 🟢 Set up Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '20'
 
     - name: 🔍 Run npm audit
       run: |
@@ -134,12 +134,12 @@ jobs:
         output: 'trivy-results.sarif'
 
     - name: 📤 Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v2
+      uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: 'trivy-results.sarif'
 
     - name: 📤 Upload security reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: security-reports
         path: |
@@ -227,7 +227,7 @@ jobs:
         output: 'frontend-image-trivy-results.sarif'
 
     - name: 📤 Upload image scan results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: image-security-reports
         path: |
@@ -345,14 +345,28 @@ jobs:
     if: always()
     
     steps:
+    - name: 🔐 Configure AWS credentials (if available)
+      if: success()
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+      continue-on-error: true
+
     - name: 🎯 Get ALB URL
       if: success()
       run: |
-        aws elbv2 describe-load-balancers \
-          --names school-mis-alb \
-          --query 'LoadBalancers[0].DNSName' \
-          --output text > alb_url.txt
-        echo "ALB_URL=$(cat alb_url.txt)" >> $GITHUB_ENV
+        if aws sts get-caller-identity &>/dev/null; then
+          aws elbv2 describe-load-balancers \
+            --names school-mis-alb \
+            --query 'LoadBalancers[0].DNSName' \
+            --output text > alb_url.txt 2>/dev/null || echo "ALB not found" > alb_url.txt
+          echo "ALB_URL=$(cat alb_url.txt)" >> $GITHUB_ENV
+        else
+          echo "ALB_URL=AWS credentials not configured" >> $GITHUB_ENV
+        fi
+      continue-on-error: true
 
     - name: ✅ Deployment Success Notification
       if: success()
@@ -365,6 +379,7 @@ jobs:
           📊 View logs: https://console.aws.amazon.com/cloudwatch/
           📈 Metrics: https://console.aws.amazon.com/ecs/
         webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+      continue-on-error: true
 
     - name: ❌ Deployment Failure Notification
       if: failure()
@@ -376,3 +391,4 @@ jobs:
           🔗 Check workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           📋 Review logs for details
         webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+      continue-on-error: true
