@@ -1,0 +1,378 @@
+name: 🚀 School MIS CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY_BACKEND: school-mis-backend
+  ECR_REPOSITORY_FRONTEND: school-mis-frontend
+  ECS_SERVICE: school-mis-service
+  ECS_CLUSTER: school-mis-cluster
+  ECS_TASK_DEFINITION: school-mis-task-definition
+
+jobs:
+  # Test and Build Stage
+  test-and-build:
+    name: 🧪 Test and Build
+    runs-on: ubuntu-latest
+    outputs:
+      backend-image-tag: ${{ steps.meta-backend.outputs.tags }}
+      frontend-image-tag: ${{ steps.meta-frontend.outputs.tags }}
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🐍 Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: 📦 Cache Python dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: 🔧 Install Python dependencies
+      run: |
+        cd backend
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: 🧪 Run Python tests with coverage
+      run: |
+        cd backend
+        python -m pytest tests/ -v --cov=. --cov-report=xml --cov-report=html
+      continue-on-error: true
+
+    - name: 📊 Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./backend/coverage.xml
+        flags: backend
+        name: backend-coverage
+
+    - name: 🟢 Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'yarn'
+        cache-dependency-path: frontend/yarn.lock
+
+    - name: 📦 Install frontend dependencies
+      run: |
+        cd frontend
+        yarn install --frozen-lockfile
+
+    - name: 🧪 Run frontend tests
+      run: |
+        cd frontend
+        yarn test --coverage --watchAll=false
+      continue-on-error: true
+
+    - name: 🏗️ Build React application
+      run: |
+        cd frontend
+        yarn build
+
+    - name: 📤 Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: frontend-build
+        path: frontend/build/
+        retention-days: 30
+
+  # Security Scan Stage
+  security-scan:
+    name: 🔒 Security Scan
+    runs-on: ubuntu-latest
+    needs: test-and-build
+    permissions:
+      security-events: write
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🟢 Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: 🔍 Run npm audit
+      run: |
+        cd frontend
+        npm audit --audit-level moderate --json > npm-audit-report.json || true
+        cat npm-audit-report.json
+
+    - name: 🐍 Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: 🔍 Run Python security checks
+      run: |
+        cd backend
+        pip install safety bandit
+        safety check --json --output safety-report.json || true
+        bandit -r . -f json -o bandit-report.json || true
+
+    - name: 🔒 Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: 📤 Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+    - name: 📤 Upload security reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-reports
+        path: |
+          frontend/npm-audit-report.json
+          backend/safety-report.json
+          backend/bandit-report.json
+          trivy-results.sarif
+
+  # Docker Build & Push Stage
+  docker-build-push:
+    name: 🐳 Docker Build & Push
+    runs-on: ubuntu-latest
+    needs: [test-and-build, security-scan]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🔐 Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: 🔑 Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: 🏷️ Extract metadata for backend
+      id: meta-backend
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_BACKEND }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: 🏷️ Extract metadata for frontend
+      id: meta-frontend
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_FRONTEND }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: 🏗️ Build and push backend Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend
+        push: true
+        tags: ${{ steps.meta-backend.outputs.tags }}
+        labels: ${{ steps.meta-backend.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: 🏗️ Build and push frontend Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./frontend
+        push: true
+        tags: ${{ steps.meta-frontend.outputs.tags }}
+        labels: ${{ steps.meta-frontend.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: 🔍 Scan backend image with Trivy
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_BACKEND }}:latest
+        format: 'sarif'
+        output: 'backend-image-trivy-results.sarif'
+
+    - name: 🔍 Scan frontend image with Trivy
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_FRONTEND }}:latest
+        format: 'sarif'
+        output: 'frontend-image-trivy-results.sarif'
+
+    - name: 📤 Upload image scan results
+      uses: actions/upload-artifact@v3
+      with:
+        name: image-security-reports
+        path: |
+          backend-image-trivy-results.sarif
+          frontend-image-trivy-results.sarif
+
+  # Infrastructure Deploy Stage
+  infrastructure-deploy:
+    name: 🏗️ Infrastructure Deploy
+    runs-on: ubuntu-latest
+    needs: docker-build-push
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🔐 Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: 🏗️ Setup Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: ~1.0
+
+    - name: 🔧 Terraform Init
+      run: |
+        cd terraform
+        terraform init
+
+    - name: ✅ Terraform Validate
+      run: |
+        cd terraform
+        terraform validate
+
+    - name: 📋 Terraform Plan
+      run: |
+        cd terraform
+        terraform plan -out=tfplan
+
+    - name: 🚀 Terraform Apply
+      if: github.ref == 'refs/heads/main'
+      run: |
+        cd terraform
+        terraform apply -auto-approve tfplan
+
+  # Application Deploy Stage
+  application-deploy:
+    name: 🚀 Application Deploy
+    runs-on: ubuntu-latest
+    needs: [docker-build-push, infrastructure-deploy]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+
+    - name: 🔐 Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: 🔑 Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: 📝 Fill in the new image ID in the Amazon ECS task definition
+      id: task-def
+      uses: aws-actions/amazon-ecs-render-task-definition@v1
+      with:
+        task-definition: .aws/task-definition.json
+        container-name: backend
+        image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_BACKEND }}:latest
+
+    - name: 📝 Fill in the frontend image in the task definition
+      id: task-def-frontend
+      uses: aws-actions/amazon-ecs-render-task-definition@v1
+      with:
+        task-definition: ${{ steps.task-def.outputs.task-definition }}
+        container-name: frontend
+        image: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_FRONTEND }}:latest
+
+    - name: 🚀 Deploy Amazon ECS task definition
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      with:
+        task-definition: ${{ steps.task-def-frontend.outputs.task-definition }}
+        service: ${{ env.ECS_SERVICE }}
+        cluster: ${{ env.ECS_CLUSTER }}
+        wait-for-service-stability: true
+
+    - name: ✅ Verify deployment
+      run: |
+        echo "Waiting for service to stabilize..."
+        aws ecs wait services-stable \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --services ${{ env.ECS_SERVICE }}
+        
+        echo "Getting service details..."
+        aws ecs describe-services \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --services ${{ env.ECS_SERVICE }} \
+          --query 'services[0].deployments'
+
+  # Notification Stage
+  notification:
+    name: 📢 Notification
+    runs-on: ubuntu-latest
+    needs: [application-deploy]
+    if: always()
+    
+    steps:
+    - name: 🎯 Get ALB URL
+      if: success()
+      run: |
+        aws elbv2 describe-load-balancers \
+          --names school-mis-alb \
+          --query 'LoadBalancers[0].DNSName' \
+          --output text > alb_url.txt
+        echo "ALB_URL=$(cat alb_url.txt)" >> $GITHUB_ENV
+
+    - name: ✅ Deployment Success Notification
+      if: success()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: success
+        text: |
+          🎉 School MIS deployment successful!
+          🌐 Application URL: http://${{ env.ALB_URL }}
+          📊 View logs: https://console.aws.amazon.com/cloudwatch/
+          📈 Metrics: https://console.aws.amazon.com/ecs/
+        webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+    - name: ❌ Deployment Failure Notification
+      if: failure()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: failure
+        text: |
+          ❌ School MIS deployment failed!
+          🔗 Check workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          📋 Review logs for details
+        webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
