@@ -226,12 +226,26 @@ resource "aws_lb_listener" "frontend" {
   protocol          = "HTTP"
 
   default_action {
-    type = "redirect"
+    # If SSL certificate is provided, redirect to HTTPS
+    # Otherwise, forward directly to frontend target group
+    type = var.certificate_arn != "" ? "redirect" : "forward"
 
-    redirect {
-      port        = "443"
-      protocol    = "HTTPS"
-      status_code = "HTTP_301"
+    dynamic "redirect" {
+      for_each = var.certificate_arn != "" ? [1] : []
+      content {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
+    }
+
+    dynamic "forward" {
+      for_each = var.certificate_arn != "" ? [] : [1]
+      content {
+        target_group {
+          arn = aws_lb_target_group.frontend.arn
+        }
+      }
     }
   }
 }
@@ -246,8 +260,13 @@ resource "aws_lb_listener" "frontend_https" {
   certificate_arn   = var.certificate_arn
 
   default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.frontend.arn
+    type = "forward"
+    
+    forward {
+      target_group {
+        arn = aws_lb_target_group.frontend.arn
+      }
+    }
   }
 }
 
@@ -257,8 +276,13 @@ resource "aws_lb_listener_rule" "backend" {
   priority     = 100
 
   action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.backend.arn
+    type = "forward"
+    
+    forward {
+      target_group {
+        arn = aws_lb_target_group.backend.arn
+      }
+    }
   }
 
   condition {
