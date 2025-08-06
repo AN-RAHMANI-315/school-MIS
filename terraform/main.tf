@@ -43,7 +43,8 @@ data "aws_caller_identity" "current" {}
 
 # Local values
 locals {
-  name_prefix = "${var.project_name}-${var.environment}"
+  # Shortened naming to stay within AWS limits (32 chars max for ALB target groups)
+  name_prefix = "${substr(var.project_name, 0, 8)}-${substr(var.environment, 0, 4)}"
   azs         = slice(data.aws_availability_zones.available.names, 0, 2)
   
   common_tags = {
