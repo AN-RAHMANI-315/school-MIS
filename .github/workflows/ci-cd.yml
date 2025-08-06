@@ -273,6 +273,11 @@ jobs:
       with:
         terraform_version: ~1.0
 
+    - name: 🪣 Setup Terraform Backend (S3 + DynamoDB)
+      run: |
+        cd scripts
+        ./setup-terraform-backend.sh
+
     - name: 🔧 Terraform Init
       run: |
         cd terraform

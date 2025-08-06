@@ -201,14 +201,31 @@ This project implements a comprehensive DevOps pipeline with modern best practic
    ```
 
 2. **Deploy Infrastructure**
-   ```bash
-   cd terraform
-   terraform init
-   terraform plan
-   terraform apply
-   ```
+### 4. Deploy Infrastructure with Terraform
 
-3. **Update Task Definition**
+#### Option A: Automated Setup (Recommended)
+```bash
+# Setup Terraform backend (S3 + DynamoDB)
+./scripts/setup-terraform-backend.sh
+
+# Deploy infrastructure
+cd terraform/
+terraform init
+terraform plan
+terraform apply
+```
+
+#### Option B: Manual Setup
+See [Terraform Backend Setup Guide](docs/TERRAFORM_BACKEND_SETUP.md) for detailed instructions.
+
+#### Option C: Local State (Development)
+```bash
+cd terraform/
+cp main-local.tf main.tf
+terraform init
+terraform plan
+terraform apply
+```3. **Update Task Definition**
    Update `.aws/task-definition.json` with your AWS account ID and resource ARNs.
 
 ### Production Deployment
