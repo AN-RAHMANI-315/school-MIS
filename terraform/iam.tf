@@ -165,7 +165,6 @@ resource "aws_iam_role" "ecs_auto_scaling_role" {
 
   lifecycle {
     ignore_changes = [name]
-    prevent_destroy = true
   }
 }
 
