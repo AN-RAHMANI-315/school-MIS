@@ -74,7 +74,7 @@ variable "log_retention_in_days" {
 variable "enable_auto_scaling" {
   description = "Enable auto scaling for ECS service"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "min_capacity" {

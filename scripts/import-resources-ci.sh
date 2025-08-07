@@ -49,6 +49,57 @@ import_resource "Log Group" "aws_cloudwatch_log_group.backend" "/aws/ecs/school-
 import_resource "Log Group" "aws_cloudwatch_log_group.frontend" "/aws/ecs/school-m-prod/frontend"
 import_resource "Log Group" "aws_cloudwatch_log_group.vpc_flow_logs" "/aws/vpc/flowlogs/school-m-prod"
 
+# Import Network resources (VPC, Subnets, EIPs and NAT Gateways)
+echo "🌐 Importing Network resources..."
+
+# Import VPC
+VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=school-m-prod-vpc" --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo "None")
+if [ "$VPC_ID" != "None" ] && [ "$VPC_ID" != "null" ] && [ "$VPC_ID" != "" ]; then
+    import_resource "VPC" "aws_vpc.main" "$VPC_ID"
+else
+    echo "⚠️  VPC school-m-prod-vpc not found"
+fi
+
+# Import Internet Gateway
+IGW_ID=$(aws ec2 describe-internet-gateways --filters "Name=tag:Name,Values=school-m-prod-igw" --query 'InternetGateways[0].InternetGatewayId' --output text 2>/dev/null || echo "None")
+if [ "$IGW_ID" != "None" ] && [ "$IGW_ID" != "null" ] && [ "$IGW_ID" != "" ]; then
+    import_resource "Internet Gateway" "aws_internet_gateway.main" "$IGW_ID"
+else
+    echo "⚠️  Internet Gateway school-m-prod-igw not found"
+fi
+
+# Import Route Tables
+PUBLIC_RT_ID=$(aws ec2 describe-route-tables --filters "Name=tag:Name,Values=school-m-prod-public-rt" --query 'RouteTables[0].RouteTableId' --output text 2>/dev/null || echo "None")
+if [ "$PUBLIC_RT_ID" != "None" ] && [ "$PUBLIC_RT_ID" != "null" ] && [ "$PUBLIC_RT_ID" != "" ]; then
+    import_resource "Route Table" "aws_route_table.public" "$PUBLIC_RT_ID"
+else
+    echo "⚠️  Public route table school-m-prod-public-rt not found"
+fi
+
+# Get existing EIP allocation IDs
+echo "Getting existing EIP allocation IDs..."
+EIP_ALLOCS=$(aws ec2 describe-addresses --filters "Name=tag:Name,Values=school-m-prod-nat-eip-*" --query 'Addresses[].AllocationId' --output text 2>/dev/null || echo "")
+if [ -n "$EIP_ALLOCS" ]; then
+    EIP_ARRAY=($EIP_ALLOCS)
+    for i in "${!EIP_ARRAY[@]}"; do
+        import_resource "EIP" "aws_eip.nat[$i]" "${EIP_ARRAY[$i]}"
+    done
+else
+    echo "⚠️  No existing EIPs found with school-m-prod-nat-eip pattern"
+fi
+
+# Get existing NAT Gateway IDs
+echo "Getting existing NAT Gateway IDs..."
+NAT_GW_IDS=$(aws ec2 describe-nat-gateways --filter "Name=tag:Name,Values=school-m-prod-nat-gw-*" --query 'NatGateways[].NatGatewayId' --output text 2>/dev/null || echo "")
+if [ -n "$NAT_GW_IDS" ]; then
+    NAT_ARRAY=($NAT_GW_IDS)
+    for i in "${!NAT_ARRAY[@]}"; do
+        import_resource "NAT Gateway" "aws_nat_gateway.main[$i]" "${NAT_ARRAY[$i]}"
+    done
+else
+    echo "⚠️  No existing NAT Gateways found with school-m-prod-nat-gw pattern"
+fi
+
 # Import ALB and target groups (get ARNs dynamically)
 echo "🔗 Importing Load Balancer resources..."
 

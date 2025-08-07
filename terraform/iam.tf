@@ -172,5 +172,5 @@ resource "aws_iam_role" "ecs_auto_scaling_role" {
 resource "aws_iam_role_policy_attachment" "ecs_auto_scaling_role" {
   count      = var.enable_auto_scaling ? 1 : 0
   role       = aws_iam_role.ecs_auto_scaling_role[0].name
-  policy_arn = "arn:aws:iam::aws:policy/application-autoscaling/ApplicationAutoScalingECSServicePolicy"
+  policy_arn = "arn:aws:iam::aws:policy/service-role/ApplicationAutoScalingECSServicePolicy"
 }
