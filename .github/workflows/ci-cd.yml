@@ -286,9 +286,9 @@ jobs:
 
     - name: 📥 Import Existing Resources
       run: |
-        cd scripts
-        chmod +x import-resources-ci.sh
-        ./import-resources-ci.sh
+        cd terraform
+        chmod +x ../scripts/import-resources-ci.sh
+        ../scripts/import-resources-ci.sh
       continue-on-error: true
 
     - name: ✅ Terraform Validate

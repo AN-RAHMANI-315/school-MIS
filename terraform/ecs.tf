@@ -131,6 +131,10 @@ resource "aws_ecs_cluster" "main" {
   }
 
   tags = local.common_tags
+
+  lifecycle {
+    ignore_changes = [name]
+  }
 }
 
 # CloudWatch Log Group for ECS Cluster
