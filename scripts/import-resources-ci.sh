@@ -68,12 +68,54 @@ else
     echo "⚠️  Internet Gateway school-m-prod-igw not found"
 fi
 
+# Import Subnets
+echo "Importing Subnets..."
+PUBLIC_SUBNET_IDS=$(aws ec2 describe-subnets --filters "Name=tag:Name,Values=school-m-prod-public-subnet-*" --query 'Subnets[].SubnetId' --output text 2>/dev/null || echo "")
+if [ -n "$PUBLIC_SUBNET_IDS" ]; then
+    PUBLIC_ARRAY=($PUBLIC_SUBNET_IDS)
+    for i in "${!PUBLIC_ARRAY[@]}"; do
+        import_resource "Public Subnet" "aws_subnet.public[$i]" "${PUBLIC_ARRAY[$i]}"
+    done
+else
+    echo "⚠️  No public subnets found"
+fi
+
+PRIVATE_SUBNET_IDS=$(aws ec2 describe-subnets --filters "Name=tag:Name,Values=school-m-prod-private-subnet-*" --query 'Subnets[].SubnetId' --output text 2>/dev/null || echo "")
+if [ -n "$PRIVATE_SUBNET_IDS" ]; then
+    PRIVATE_ARRAY=($PRIVATE_SUBNET_IDS)
+    for i in "${!PRIVATE_ARRAY[@]}"; do
+        import_resource "Private Subnet" "aws_subnet.private[$i]" "${PRIVATE_ARRAY[$i]}"
+    done
+else
+    echo "⚠️  No private subnets found"
+fi
+
 # Import Route Tables
 PUBLIC_RT_ID=$(aws ec2 describe-route-tables --filters "Name=tag:Name,Values=school-m-prod-public-rt" --query 'RouteTables[0].RouteTableId' --output text 2>/dev/null || echo "None")
 if [ "$PUBLIC_RT_ID" != "None" ] && [ "$PUBLIC_RT_ID" != "null" ] && [ "$PUBLIC_RT_ID" != "" ]; then
     import_resource "Route Table" "aws_route_table.public" "$PUBLIC_RT_ID"
 else
     echo "⚠️  Public route table school-m-prod-public-rt not found"
+fi
+
+PRIVATE_RT_IDS=$(aws ec2 describe-route-tables --filters "Name=tag:Name,Values=school-m-prod-private-rt-*" --query 'RouteTables[].RouteTableId' --output text 2>/dev/null || echo "")
+if [ -n "$PRIVATE_RT_IDS" ]; then
+    PRIVATE_RT_ARRAY=($PRIVATE_RT_IDS)
+    for i in "${!PRIVATE_RT_ARRAY[@]}"; do
+        import_resource "Private Route Table" "aws_route_table.private[$i]" "${PRIVATE_RT_ARRAY[$i]}"
+    done
+else
+    echo "⚠️  No private route tables found"
+fi
+
+# Import Flow Log
+if [ "$VPC_ID" != "None" ] && [ "$VPC_ID" != "null" ] && [ "$VPC_ID" != "" ]; then
+    FLOW_LOG_ID=$(aws ec2 describe-flow-logs --filters "Name=resource-id,Values=$VPC_ID" --query 'FlowLogs[0].FlowLogId' --output text 2>/dev/null || echo "None")
+    if [ "$FLOW_LOG_ID" != "None" ] && [ "$FLOW_LOG_ID" != "null" ] && [ "$FLOW_LOG_ID" != "" ]; then
+        import_resource "VPC Flow Log" "aws_flow_log.main" "$FLOW_LOG_ID"
+    else
+        echo "⚠️  VPC Flow Log not found"
+    fi
 fi
 
 # Get existing EIP allocation IDs
@@ -98,6 +140,31 @@ if [ -n "$NAT_GW_IDS" ]; then
     done
 else
     echo "⚠️  No existing NAT Gateways found with school-m-prod-nat-gw pattern"
+fi
+
+# Import Route Table Associations
+echo "Importing Route Table Associations..."
+if [ -n "$PUBLIC_SUBNET_IDS" ] && [ "$PUBLIC_RT_ID" != "None" ]; then
+    PUBLIC_ARRAY=($PUBLIC_SUBNET_IDS)
+    for i in "${!PUBLIC_ARRAY[@]}"; do
+        ASSOC_ID=$(aws ec2 describe-route-tables --route-table-ids "$PUBLIC_RT_ID" --query "RouteTables[0].Associations[?SubnetId=='${PUBLIC_ARRAY[$i]}'].RouteTableAssociationId" --output text 2>/dev/null || echo "None")
+        if [ "$ASSOC_ID" != "None" ] && [ "$ASSOC_ID" != "null" ] && [ "$ASSOC_ID" != "" ]; then
+            import_resource "Route Table Association" "aws_route_table_association.public[$i]" "$ASSOC_ID"
+        fi
+    done
+fi
+
+if [ -n "$PRIVATE_SUBNET_IDS" ] && [ -n "$PRIVATE_RT_IDS" ]; then
+    PRIVATE_ARRAY=($PRIVATE_SUBNET_IDS)
+    PRIVATE_RT_ARRAY=($PRIVATE_RT_IDS)
+    for i in "${!PRIVATE_ARRAY[@]}"; do
+        if [ -n "${PRIVATE_RT_ARRAY[$i]}" ]; then
+            ASSOC_ID=$(aws ec2 describe-route-tables --route-table-ids "${PRIVATE_RT_ARRAY[$i]}" --query "RouteTables[0].Associations[?SubnetId=='${PRIVATE_ARRAY[$i]}'].RouteTableAssociationId" --output text 2>/dev/null || echo "None")
+            if [ "$ASSOC_ID" != "None" ] && [ "$ASSOC_ID" != "null" ] && [ "$ASSOC_ID" != "" ]; then
+                import_resource "Private Route Table Association" "aws_route_table_association.private[$i]" "$ASSOC_ID"
+            fi
+        fi
+    done
 fi
 
 # Import ALB and target groups (get ARNs dynamically)
