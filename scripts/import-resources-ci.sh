@@ -52,6 +52,25 @@ import_resource "Log Group" "aws_cloudwatch_log_group.vpc_flow_logs" "/aws/vpc/f
 # Import ALB and target groups (get ARNs dynamically)
 echo "🔗 Importing Load Balancer resources..."
 
+# Import Security Groups first
+echo "🛡️  Importing Security Groups..."
+
+# Get ALB Security Group ID
+ALB_SG_ID=$(aws ec2 describe-security-groups --filters "Name=group-name,Values=school-m-prod-alb-*" --query 'SecurityGroups[0].GroupId' --output text 2>/dev/null || echo "None")
+if [ "$ALB_SG_ID" != "None" ] && [ "$ALB_SG_ID" != "null" ] && [ "$ALB_SG_ID" != "" ]; then
+    import_resource "Security Group" "aws_security_group.alb" "$ALB_SG_ID"
+else
+    echo "⚠️  ALB security group not found"
+fi
+
+# Get ECS Tasks Security Group ID
+ECS_SG_ID=$(aws ec2 describe-security-groups --filters "Name=group-name,Values=school-m-prod-ecs-tasks-*" --query 'SecurityGroups[0].GroupId' --output text 2>/dev/null || echo "None")
+if [ "$ECS_SG_ID" != "None" ] && [ "$ECS_SG_ID" != "null" ] && [ "$ECS_SG_ID" != "" ]; then
+    import_resource "Security Group" "aws_security_group.ecs_tasks" "$ECS_SG_ID"
+else
+    echo "⚠️  ECS tasks security group not found"
+fi
+
 # Get ALB ARN
 echo "Getting ALB ARN for school-m-prod-alb..."
 ALB_ARN=$(aws elbv2 describe-load-balancers --names "school-m-prod-alb" --query 'LoadBalancers[0].LoadBalancerArn' --output text 2>/dev/null || echo "None")
