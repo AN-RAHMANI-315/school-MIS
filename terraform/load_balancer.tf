@@ -100,7 +100,6 @@ resource "aws_lb" "main" {
 
   lifecycle {
     ignore_changes = [name, access_logs]
-    prevent_destroy = true
   }
 }
 
@@ -204,7 +203,6 @@ resource "aws_lb_target_group" "backend" {
 
   lifecycle {
     ignore_changes = [name]
-    prevent_destroy = true
   }
 }
 
@@ -233,7 +231,6 @@ resource "aws_lb_target_group" "frontend" {
 
   lifecycle {
     ignore_changes = [name]
-    prevent_destroy = true
   }
 }
 
