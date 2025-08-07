@@ -9,11 +9,11 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY_BACKEND: school-mis-backend
-  ECR_REPOSITORY_FRONTEND: school-mis-frontend
-  ECS_SERVICE: school-mis-service
-  ECS_CLUSTER: school-mis-cluster
-  ECS_TASK_DEFINITION: school-mis-task-definition
+  ECR_REPOSITORY_BACKEND: school-m-prod-backend
+  ECR_REPOSITORY_FRONTEND: school-m-prod-frontend
+  ECS_SERVICE: school-m-prod-service
+  ECS_CLUSTER: school-m-prod-cluster
+  ECS_TASK_DEFINITION: school-m-prod-task
 
 jobs:
   # Test and Build Stage
@@ -388,7 +388,7 @@ jobs:
       run: |
         if aws sts get-caller-identity &>/dev/null; then
           aws elbv2 describe-load-balancers \
-            --names school-mis-alb \
+            --names school-m-prod-alb \
             --query 'LoadBalancers[0].DNSName' \
             --output text > alb_url.txt 2>/dev/null || echo "ALB not found" > alb_url.txt
           echo "ALB_URL=$(cat alb_url.txt)" >> $GITHUB_ENV

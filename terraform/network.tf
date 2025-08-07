@@ -16,6 +16,10 @@ resource "aws_internet_gateway" "main" {
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-igw"
   })
+
+  lifecycle {
+    ignore_changes = [vpc_id]
+  }
 }
 
 # Public Subnets
@@ -31,6 +35,10 @@ resource "aws_subnet" "public" {
     Name = "${local.name_prefix}-public-subnet-${count.index + 1}"
     Type = "Public"
   })
+
+  lifecycle {
+    ignore_changes = [cidr_block, availability_zone]
+  }
 }
 
 # Private Subnets
@@ -45,6 +53,10 @@ resource "aws_subnet" "private" {
     Name = "${local.name_prefix}-private-subnet-${count.index + 1}"
     Type = "Private"
   })
+
+  lifecycle {
+    ignore_changes = [cidr_block, availability_zone]
+  }
 }
 
 # Elastic IPs for NAT Gateways
@@ -125,6 +137,10 @@ resource "aws_flow_log" "main" {
   log_destination = aws_cloudwatch_log_group.vpc_flow_logs.arn
   traffic_type    = "ALL"
   vpc_id          = aws_vpc.main.id
+
+  lifecycle {
+    ignore_changes = [iam_role_arn, log_destination, vpc_id]
+  }
 }
 
 # CloudWatch Log Group for VPC Flow Logs
