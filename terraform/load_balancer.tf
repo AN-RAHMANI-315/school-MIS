@@ -87,18 +87,19 @@ resource "aws_lb" "main" {
   enable_http2              = true
   drop_invalid_header_fields = true
 
-  access_logs {
-    bucket  = aws_s3_bucket.alb_logs.bucket
-    prefix  = "alb"
-    enabled = true
-  }
+  # Temporarily disable access logs to avoid S3 permission issues
+  # access_logs {
+  #   bucket  = aws_s3_bucket.alb_logs.bucket
+  #   prefix  = "alb"
+  #   enabled = true
+  # }
 
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-alb"
   })
 
   lifecycle {
-    ignore_changes = [name]
+    ignore_changes = [name, access_logs]
     prevent_destroy = true
   }
 }

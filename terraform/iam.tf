@@ -16,11 +16,6 @@ resource "aws_iam_role" "ecs_task_execution_role" {
   })
 
   tags = local.common_tags
-
-  lifecycle {
-    ignore_changes = [name]
-    prevent_destroy = true
-  }
 }
 
 resource "aws_iam_role_policy_attachment" "ecs_task_execution_role" {

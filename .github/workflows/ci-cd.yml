@@ -284,6 +284,13 @@ jobs:
         cd terraform
         terraform init -backend-config=backend.hcl
 
+    - name: 📥 Import Existing Resources
+      run: |
+        cd scripts
+        chmod +x import-resources-ci.sh
+        ./import-resources-ci.sh
+      continue-on-error: true
+
     - name: ✅ Terraform Validate
       run: |
         cd terraform
